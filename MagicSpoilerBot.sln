@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.2.32602.215
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicSpoilerBot", "MagicSpoilerBot\MagicSpoilerBot.csproj", "{DAE6FFB3-4119-48C4-8908-62DE78CA0206}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DAE6FFB3-4119-48C4-8908-62DE78CA0206}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DAE6FFB3-4119-48C4-8908-62DE78CA0206}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DAE6FFB3-4119-48C4-8908-62DE78CA0206}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DAE6FFB3-4119-48C4-8908-62DE78CA0206}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {4F4E6406-E1C8-43C5-AFFE-8EAAA23D23D5}
+	EndGlobalSection
+EndGlobal
