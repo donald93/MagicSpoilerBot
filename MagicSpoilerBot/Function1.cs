@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using Discord.Rest;
+using Discord.Webhook;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
@@ -27,7 +29,7 @@ namespace MagicSpoilerBot
         {
             log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
             
-            _scryfallApi.Cards.Search("", 0, ScryfallApi.Client.Models.SearchOptions.CardSort.Released);
+            _scryfallApi.Cards.Search("", 0, SearchOptions.CardSort.Released);
         }
 
         [FunctionName("Function2")]
@@ -35,7 +37,7 @@ namespace MagicSpoilerBot
             [DurableClient] IDurableOrchestrationClient starter, 
             ILogger log)
         {
-            log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
+            //log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
 
             var sets = await _scryfallApi.Sets.Get();
 
@@ -54,17 +56,13 @@ namespace MagicSpoilerBot
 
             var unpostedCards = cardResults.Data.Except(postedCards);
 
-            foreach(var card in unpostedCards)
+            var webhook = Environment.GetEnvironmentVariable("DiscordWebHook");
+
+            var _client = new DiscordWebhookClient(webhook);
+            foreach (var card in unpostedCards)
             {
-                Console.WriteLine(card.Name);
+               await _client.SendMessageAsync($"{card.Name}:{card.ManaCost}:{card.OracleText}\n{card.ImageUris["large"]}");
             }
-
-            //var cardsFromLatestSet = await _scryfallApi.Cards.Search($"set:{latestSet}", 0, ScryfallApi.Client.Models.SearchOptions.CardSort.Released);
-
-            //grab the latest sets
-            //get all cards from latest sets
-            //compare all cards with cards already posted
-            //post new cards
         }
     }
 }
