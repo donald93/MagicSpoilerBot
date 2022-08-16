@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Discord.Net.Webhook" Version="3.7.2" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.29.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Extensions" Version="1.1.0" />
     <PackageReference Include="Microsoft.Azure.WebJobs.Extensions.DurableTask" Version="2.7.2" />
     <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="4.1.1" />
