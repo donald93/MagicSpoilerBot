@@ -67,13 +67,13 @@ namespace MagicSpoilerBot
                     {
                         cardResults = await _scryfallApi.Cards.Search($"set:{set}", page, SearchOptions.CardSort.Name);
                     }
-                    catch (ScryfallApiException e)
+                    catch (ScryfallApiException)
                     {
                         continue;
                     }
                 }
 
-                unpostedCards.AddRange(cardResults.Data.Where(c => !postedCards.Select(p => p.Id).Contains(c.Id.ToString())));
+                unpostedCards.AddRange(cardResults.Data.Where(c => !postedCards.Select(p => p.Id).Contains(c.Id.ToString()) && c.Rarity != "common"));
             }
 
             var webhook = Environment.GetEnvironmentVariable("DiscordWebHook");
