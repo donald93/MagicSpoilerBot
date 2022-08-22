@@ -15,12 +15,12 @@ using System.Threading.Tasks;
 
 namespace MagicSpoilerBot
 {
-    public class Function1
+    public class MagicSpoilerFunction
     {
         public ScryfallApiClient _scryfallApi;
         public CosmosClient _cosmosClient;
 
-        public Function1(ScryfallApiClient scryfallApi)
+        public MagicSpoilerFunction(ScryfallApiClient scryfallApi)
         {
             _scryfallApi = scryfallApi;
             _cosmosClient = new CosmosClient(Environment.GetEnvironmentVariable("CosmosUrl"), Environment.GetEnvironmentVariable("CosmosPrimaryKey"));
@@ -82,7 +82,7 @@ namespace MagicSpoilerBot
             foreach (var card in unpostedCards)
             {
                 await _client.SendMessageAsync($"{card.Name}:{card.ManaCost}:{card.OracleText}\n{card.ImageUris["large"]}");
-                await cosmosContainer.CreateItemAsync(card.ToDto());
+                await cosmosContainer.UpsertItemAsync(card.ToDto());
             }
         }
 
@@ -144,7 +144,7 @@ namespace MagicSpoilerBot
             foreach (var card in unpostedCards)
             {
                 await _client.SendMessageAsync($"{card.Name}:{card.ManaCost}:{card.OracleText}\n{card.ImageUris["large"]}");
-                await cosmosContainer.CreateItemAsync(card.ToDto());
+                await cosmosContainer.UpsertItemAsync(card.ToDto());
             }
         }
     }
