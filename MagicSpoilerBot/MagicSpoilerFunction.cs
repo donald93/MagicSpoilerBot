@@ -20,6 +20,8 @@ namespace MagicSpoilerBot
         public ScryfallApiClient _scryfallApi;
         public CosmosClient _cosmosClient;
 
+        private readonly IEnumerable<string> _setTypesToPost = new List<string>() { "expansion", "commander", "funny", "token", "promo" };
+
         public MagicSpoilerFunction(ScryfallApiClient scryfallApi)
         {
             _scryfallApi = scryfallApi;
@@ -30,15 +32,17 @@ namespace MagicSpoilerBot
         public async Task CardPostTimer([TimerTrigger("0 */15 * * * *")] TimerInfo myTimer, ILogger log)
         {
             log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
+
             var cosmosContainer = _cosmosClient.GetDatabase("magic-spoiler-bot").GetContainer("Cards");
 
             var sets = await _scryfallApi.Sets.Get();
 
             var upcomingSets = sets.Data
-                .Where(s => s.SetType == "core" || s.SetType == "expansion" || s.SetType == "commander" || s.SetType == "funny" || s.SetType == "token" || s.SetType == "promo")
+                .Where(s => _setTypesToPost.Contains(s.SetType))
                 .Where(s => s.ReleaseDate > DateTime.Now)
-                .OrderBy(s => s.ReleaseDate)
                 .Select(s => s.Code);
+
+            log.LogInformation($"Upcoming sets: ", upcomingSets.ToList());
 
             using var feedIterator = cosmosContainer.GetItemLinqQueryable<CardDto>().Where(c => upcomingSets.Contains(c.SetCode)).ToFeedIterator();
 
@@ -47,6 +51,9 @@ namespace MagicSpoilerBot
             while (feedIterator.HasMoreResults)
             {
                 var resultSet = await feedIterator.ReadNextAsync();
+
+                log.LogInformation($"Found {resultSet.Count} posted cards");
+
                 foreach (CardDto card in resultSet)
                 {
                     postedCards.Add(card);
@@ -67,7 +74,7 @@ namespace MagicSpoilerBot
                     {
                         cardResults = await _scryfallApi.Cards.Search($"set:{set}", page, SearchOptions.CardSort.Name);
                     }
-                    catch (ScryfallApiException)
+                    catch (ScryfallApiException e)
                     {
                         continue;
                     }
@@ -76,40 +83,132 @@ namespace MagicSpoilerBot
                 unpostedCards.AddRange(cardResults.Data.Where(c => !postedCards.Select(p => p.Id).Contains(c.Id.ToString()) && c.Rarity != "common"));
             }
 
+            log.LogInformation($"Found {unpostedCards.Count} unposted cards");
+
             var webhook = Environment.GetEnvironmentVariable("DiscordWebHook");
 
             var _client = new DiscordWebhookClient(webhook);
             foreach (var card in unpostedCards)
             {
+                log.LogInformation($"Posting {card.Name}");
                 await _client.SendMessageAsync($"{card.Name}:{card.ManaCost}:{card.OracleText}\n{card.ImageUris["large"]}");
                 await cosmosContainer.UpsertItemAsync(card.ToDto());
             }
         }
+
+        [FunctionName("FetchUpcomingSets")]
+        public async Task<IEnumerable<string>> FetchUpcomingSets([ActivityTrigger] IDurableActivityContext context, ILogger log)
+        {
+            var sets = await _scryfallApi.Sets.Get();
+
+            var upcomingSets = sets.Data
+                .Where(s => _setTypesToPost.Contains(s.SetType))
+                .Where(s => s.ReleaseDate > DateTime.Now)
+                .Select(s => s.Code);
+
+            log.LogInformation($"Upcoming sets: ", upcomingSets.ToList());
+
+            return upcomingSets;
+        }
+
+        [FunctionName("GetPostedCards")]
+        public async Task<IEnumerable<CardDto>> GetPostedCards([ActivityTrigger] IEnumerable<string> upcomingSets, ILogger log)
+        {
+            var cosmosContainer = _cosmosClient.GetDatabase("magic-spoiler-bot").GetContainer("Cards");
+
+            using var feedIterator = cosmosContainer.GetItemLinqQueryable<CardDto>().Where(c => upcomingSets.Contains(c.SetCode)).ToFeedIterator();
+
+            List<CardDto> postedCards = new();
+
+            while (feedIterator.HasMoreResults)
+            {
+                var resultSet = await feedIterator.ReadNextAsync();
+
+                log.LogInformation($"Found {resultSet.Count} posted cards");
+
+                foreach (CardDto card in resultSet)
+                {
+                    postedCards.Add(card);
+                }
+            }
+
+            return postedCards;
+        }
+
+        [FunctionName("FindUnpostedCards")]
+        public async Task<IEnumerable<Card>> FindUnpostedCards([ActivityTrigger] IEnumerable<string> upcomingSets, IEnumerable<CardDto> postedCards, ILogger log)
+        {
+            List<Card> unpostedCards = new();
+
+            foreach (var set in upcomingSets)
+            {
+                var page = 0;
+                ResultList<Card> cardResults = new();
+
+                if (page == 0 || cardResults.HasMore)
+                {
+                    await Task.Delay(100);
+                    try
+                    {
+                        cardResults = await _scryfallApi.Cards.Search($"set:{set}", page, SearchOptions.CardSort.Name);
+                    }
+                    catch (ScryfallApiException e)
+                    {
+                        continue;
+                    }
+                }
+
+                unpostedCards.AddRange(cardResults.Data.Where(c => !postedCards.Select(p => p.Id).Contains(c.Id.ToString()) && c.Rarity != "common"));
+            }
+
+            log.LogInformation($"Found {unpostedCards.Count} unposted cards");
+
+            return unpostedCards;
+        }
+
+        [FunctionName("PostCardToDiscordChannel")]
+        public async Task PostCardToDiscordChannel([ActivityTrigger] Card card, string webhook, ILogger log)
+        {
+            log.LogInformation($"Posting {card.Name}");
+
+            var _client = new DiscordWebhookClient(webhook);
+
+            await _client.SendMessageAsync($"{card.Name}:{card.ManaCost}:{card.OracleText}\n{card.ImageUris["large"]}");
+            var cosmosContainer = _cosmosClient.GetDatabase("magic-spoiler-bot").GetContainer("Cards");
+
+            await cosmosContainer.UpsertItemAsync(card.ToDto());
+        }
+
 
         [FunctionName("CardPost_HttpTrigger")]
         public async Task CardPostHttp([HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequestMessage req,
             [DurableClient] IDurableOrchestrationClient starter,
             ILogger log)
         {
+            log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
+
             var cosmosContainer = _cosmosClient.GetDatabase("magic-spoiler-bot").GetContainer("Cards");
-            //log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
 
             var sets = await _scryfallApi.Sets.Get();
 
             var upcomingSets = sets.Data
-                .Where(s => s.SetType == "core" || s.SetType == "expansion" || s.SetType == "commander" || s.SetType == "funny" || s.SetType == "token" || s.SetType == "promo")
+                .Where(s => _setTypesToPost.Contains(s.SetType))
                 .Where(s => s.ReleaseDate > DateTime.Now)
-                .OrderBy(s => s.ReleaseDate)
                 .Select(s => s.Code);
+
+            log.LogInformation($"Upcoming sets: ", upcomingSets.ToList());
 
             using var feedIterator = cosmosContainer.GetItemLinqQueryable<CardDto>().Where(c => upcomingSets.Contains(c.SetCode)).ToFeedIterator();
 
             List<CardDto> postedCards = new();
 
-            while(feedIterator.HasMoreResults)
+            while (feedIterator.HasMoreResults)
             {
                 var resultSet = await feedIterator.ReadNextAsync();
-                foreach(CardDto card in resultSet)
+
+                log.LogInformation($"Found {resultSet.Count} posted cards");
+
+                foreach (CardDto card in resultSet)
                 {
                     postedCards.Add(card);
                 }
@@ -117,32 +216,36 @@ namespace MagicSpoilerBot
 
             List<Card> unpostedCards = new();
 
-            foreach(var set in upcomingSets)
+            foreach (var set in upcomingSets)
             {
                 var page = 0;
                 ResultList<Card> cardResults = new();
 
-                if(page == 0 || cardResults.HasMore)
+                if (page == 0 || cardResults.HasMore)
                 {
                     await Task.Delay(100);
                     try
                     {
                         cardResults = await _scryfallApi.Cards.Search($"set:{set}", page, SearchOptions.CardSort.Name);
                     }
-                    catch(ScryfallApiException e)
+                    catch (ScryfallApiException e)
                     {
                         continue;
                     }
                 }
 
-                unpostedCards.AddRange(cardResults.Data.Where(c => !postedCards.Select(p => p.Id).Contains(c.Id.ToString())));
+                unpostedCards.AddRange(cardResults.Data.Where(c => !postedCards.Select(p => p.Id).Contains(c.Id.ToString()) && c.Rarity != "common"));
             }
+
+            log.LogInformation($"Found {unpostedCards.Count} unposted cards");
 
             var webhook = Environment.GetEnvironmentVariable("DiscordWebHook");
 
-            var _client = new DiscordWebhookClient(webhook);
             foreach (var card in unpostedCards)
             {
+                log.LogInformation($"Posting {card.Name}");
+                var _client = new DiscordWebhookClient(webhook);
+
                 await _client.SendMessageAsync($"{card.Name}:{card.ManaCost}:{card.OracleText}\n{card.ImageUris["large"]}");
                 await cosmosContainer.UpsertItemAsync(card.ToDto());
             }
