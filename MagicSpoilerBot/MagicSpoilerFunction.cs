@@ -91,7 +91,15 @@ namespace MagicSpoilerBot
             foreach (var card in unpostedCards)
             {
                 log.LogInformation($"Posting {card.Name}");
-                await _client.SendMessageAsync($"{card.Name}:{card.ManaCost}:{card.OracleText}\n{card.ImageUris["large"]}");
+
+                string imageUri = string.Empty;
+
+                if (card.ImageUris is not null)
+                {
+                    imageUri = card.ImageUris["large"].ToString();
+                }
+
+                await _client.SendMessageAsync($"{card.Name}:{card.ManaCost}:{card.OracleText}\n{imageUri}");
                 await cosmosContainer.UpsertItemAsync(card.ToDto());
             }
         }
@@ -246,7 +254,14 @@ namespace MagicSpoilerBot
                 log.LogInformation($"Posting {card.Name}");
                 var _client = new DiscordWebhookClient(webhook);
 
-                await _client.SendMessageAsync($"{card.Name}:{card.ManaCost}:{card.OracleText}\n{card.ImageUris["large"]}");
+                string imageUri = string.Empty;
+
+                if(card.ImageUris is not null)
+                {
+                    imageUri = card.ImageUris["large"].ToString();
+                }
+
+                await _client.SendMessageAsync($"{card.Name}:{card.ManaCost}:{card.OracleText}\n{imageUri}");
                 await cosmosContainer.UpsertItemAsync(card.ToDto());
             }
         }
