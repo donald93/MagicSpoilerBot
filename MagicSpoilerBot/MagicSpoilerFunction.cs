@@ -29,7 +29,7 @@ namespace MagicSpoilerBot
         }
 
         [FunctionName("CardPost_TimerTrigger")]
-        public async Task CardPostTimer([TimerTrigger("0 */15 * * * *")] TimerInfo myTimer, ILogger log)
+        public async Task CardPostTimer([TimerTrigger("0 * */2 * * *")] TimerInfo myTimer, ILogger log)
         {
             log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
 
